@@ -27,6 +27,7 @@ import yfinance as yf
 import pandas as pd
 import altair as alt
 from crewai import Agent, Task, Crew, Process
+from crewai_tools import CSVSearchTool
 from langchain_openai import ChatOpenAI
 import os
 
@@ -163,6 +164,30 @@ latest_norm_values = {normalized[ticker].iat[-1]: ticker for ticker in tickers}
 max_norm_value = max(latest_norm_values.items())
 min_norm_value = min(latest_norm_values.items())
 
+# Export stock data to CSV for CSVSearchTool
+csv_file_path = "/tmp/stock_analysis_data.csv"
+# Create a comprehensive CSV with stock metrics
+stock_metrics_data = []
+for ticker in tickers:
+    pct_change = normalized[ticker].pct_change().dropna()
+    total_return = (normalized[ticker].iat[-1] - 1) * 100
+    volatility = pct_change.std() * 100
+    start_price = data[ticker].iloc[0]
+    end_price = data[ticker].iloc[-1]
+
+    stock_metrics_data.append({
+        'Ticker': ticker,
+        'Start_Price': f"{start_price:.2f}",
+        'End_Price': f"{end_price:.2f}",
+        'Total_Return_Percent': f"{total_return:.2f}",
+        'Volatility_Percent': f"{volatility:.2f}",
+        'Performance_Category': 'Outperformer' if total_return > 0 else 'Underperformer',
+        'Time_Period': horizon
+    })
+
+stock_metrics_df = pd.DataFrame(stock_metrics_data)
+stock_metrics_df.to_csv(csv_file_path, index=False)
+
 bottom_left_cell = cols[0].container(
     border=True, height="stretch", vertical_alignment="center"
 )
@@ -214,8 +239,16 @@ if USE_CREWAI and len(tickers) > 1:
     Our AI agents analyze the stock data to provide insights and recommendations.
     """
 
+    # Display the CSV data being analyzed
+    with st.expander("View Stock Metrics CSV Data", expanded=False):
+        st.info("This CSV data is searchable by the AI agents using CSVSearchTool for semantic queries.")
+        st.dataframe(stock_metrics_df, use_container_width=True)
+
     # Initialize LLM
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+    # Initialize CSVSearchTool for semantic search of stock data
+    csv_search_tool = CSVSearchTool(csv=csv_file_path)
 
     # Create specialized agents
     data_analyst = Agent(
@@ -224,8 +257,10 @@ if USE_CREWAI and len(tickers) > 1:
         backstory=(
             "You are an experienced quantitative analyst specializing in stock market data analysis. "
             "You excel at processing historical price data and calculating relevant metrics like returns, "
-            "volatility, and relative performance."
+            "volatility, and relative performance. You have access to a CSV search tool that allows you "
+            "to perform semantic searches on stock metrics data."
         ),
+        tools=[csv_search_tool],
         llm=llm,
         verbose=False,
         allow_delegation=False,
@@ -281,10 +316,16 @@ if USE_CREWAI and len(tickers) > 1:
     # Create tasks for the crew
     task1 = Task(
         description=(
-            f"Analyze the following stock performance data:\n\n{data_summary}\n\n"
-            "Calculate and summarize key metrics including total returns and volatility for each stock."
+            f"Using the CSV search tool, analyze the stock performance data for the following stocks: {', '.join(tickers)}.\n\n"
+            f"The data covers the time period: {horizon}\n\n"
+            "Use the CSV search tool to find:\n"
+            "1. Which stocks are categorized as 'Outperformer' vs 'Underperformer'\n"
+            "2. The total return percentage for each stock\n"
+            "3. The volatility metrics for comparison\n\n"
+            "Then calculate and summarize key metrics including total returns and volatility for each stock. "
+            "Highlight any notable patterns in the data discovered through the CSV search."
         ),
-        expected_output="A concise summary of the key performance metrics for all stocks analyzed.",
+        expected_output="A concise summary of the key performance metrics for all stocks analyzed, including insights from CSV search queries.",
         agent=data_analyst,
     )
 

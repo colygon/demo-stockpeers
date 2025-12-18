@@ -33,9 +33,12 @@ The CrewAI version implements three specialized agents working in sequential pro
 #### 1. Stock Data Analyst
 - **Role**: Stock Data Analyst
 - **Goal**: Analyze stock price data and calculate key performance metrics
+- **Tools**: CSVSearchTool for semantic search of stock metrics
 - **Capabilities**:
   - Processes historical price data
+  - Performs semantic searches on CSV data using CSVSearchTool
   - Calculates returns and volatility metrics
+  - Queries stock performance categories (Outperformer/Underperformer)
   - Provides quantitative summaries
 
 #### 2. Performance Analyst
@@ -124,8 +127,10 @@ streamlit run streamlit_app_crewai.py
 ### New AI Features (CrewAI Version Only)
 
 - **Data Analysis**: Comprehensive metrics summary with returns and volatility
+- **CSV Semantic Search**: AI agents can query stock data using natural language via CSVSearchTool
 - **Performance Analysis**: Comparative analysis identifying trends and patterns
 - **Investment Insights**: 3-5 actionable recommendations based on data
+- **Interactive Data Viewer**: View the CSV data that agents analyze
 - Expandable sections for easy navigation
 - Real-time AI analysis with loading indicators
 
@@ -144,10 +149,54 @@ yfinance>=0.2.55
 
 ```toml
 crewai>=0.86.0
+crewai-tools>=0.17.0
 langchain-openai>=0.3.0
 ```
 
 ## Technical Details
+
+### CSVSearchTool Integration
+
+The Stock Data Analyst agent is equipped with **CSVSearchTool**, a powerful CrewAI tool for semantic search of CSV data:
+
+#### What is CSVSearchTool?
+- Allows agents to perform natural language queries on CSV files
+- Provides semantic search capabilities (not just exact matches)
+- Perfect for finding patterns and relationships in structured data
+
+#### How We Use It
+The app automatically exports stock metrics to a CSV file containing:
+- **Ticker**: Stock symbol
+- **Start_Price**: Opening price for the period
+- **End_Price**: Closing price for the period
+- **Total_Return_Percent**: Calculated return percentage
+- **Volatility_Percent**: Volatility metric
+- **Performance_Category**: Outperformer/Underperformer classification
+- **Time_Period**: Selected time horizon
+
+#### Example Queries
+The Data Analyst agent can perform queries like:
+- "Which stocks are outperformers?"
+- "Find stocks with volatility above 5%"
+- "Show me the total return for tech stocks"
+- "What stocks have the highest returns?"
+
+#### Implementation
+```python
+from crewai_tools import CSVSearchTool
+
+# Initialize the tool with stock metrics CSV
+csv_search_tool = CSVSearchTool(csv='/tmp/stock_analysis_data.csv')
+
+# Add to agent
+data_analyst = Agent(
+    role="Stock Data Analyst",
+    tools=[csv_search_tool],
+    ...
+)
+```
+
+The tool enables the agent to dynamically query stock data rather than relying solely on pre-formatted summaries, leading to more flexible and insightful analysis.
 
 ### Sequential Processing
 
